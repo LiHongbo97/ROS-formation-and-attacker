@@ -1,0 +1,45 @@
+<launch>
+<arg name="model" default="$(env TURTLEBOT3_MODEL)" doc="model type [burger, waffle, waffle_pi]"/>
+ <arg name="first_tb3" default="tb3_0"/>
+<arg name="second_tb3" default="tb3_1"/>
+<arg name="third_tb3" default="tb3_2"/>
+<arg name="fourth_tb3" default="tb3_3"/>
+<arg name="fifth_tb3" default="tb3_4"/>
+
+<group ns = "$(arg first_tb3)">
+  <param name="model" value="$(arg model)"/>
+  <node pkg="president" type="tb3_0" name="tb3_0"  output="screen">
+  </node>
+</group>
+
+<group ns = "$(arg second_tb3)">
+  <param name="model" value="$(arg model)"/>
+  <node pkg="president" type="tb3_1" name="tb3_1"  output="screen">
+  </node>
+</group>
+
+<group ns = "$(arg third_tb3)">
+  <param name="model" value="$(arg model)"/>
+  <node pkg="president" type="tb3_2" name="tb3_2"  output="screen">
+  </node>
+</group>
+
+<group ns = "$(arg fourth_tb3)">
+  <param name="model" value="$(arg model)"/>
+  <node pkg="president" type="tb3_3" name="tb3_3"  output="screen">
+  </node>
+</group>
+
+<group ns = "$(arg fifth_tb3)">
+  <param name="model" value="$(arg model)"/>
+  <node pkg="president" type="tb3_4" name="tb3_4"  output="screen">
+  </node>
+</group>
+
+<group ns = "$(arg attacker)">
+  <param name="model" value="$(arg model)"/>
+  <node pkg="president" type="tb3_4" name="tb3_4"  output="screen">
+  </node>
+</group>
+
+</launch>
