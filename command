@@ -1,0 +1,9 @@
+roslaunch turtlebot3_gazebo turtlebot3_formation.launch
+roslaunch turtlebot3_gazebo turtlebot3_attack.launch
+source devel/setup.bash
+ROS_NAMESPACE=leader rosrun president leader
+ROS_NAMESPACE=follower1 rosrun president follower1
+ROS_NAMESPACE=follower2 rosrun president follower2
+ROS_NAMESPACE=follower3 rosrun president follower3
+ROS_NAMESPACE=follower4 rosrun president follower4
+ROS_NAMESPACE=attacker rosrun president attacker

@@ -1,0 +1,285 @@
+#!/usr/bin/env python
+####################################################################
+#This is follower1#
+# Author: Hongbo Li 2019.05.09#
+
+import rospy
+import time
+from geometry_msgs.msg import Twist, Point, Quaternion
+import tf
+from math import radians, copysign, sqrt, pow, pi, atan2,sin,cos
+from tf.transformations import euler_from_quaternion
+import numpy as np
+from sensor_msgs.msg import LaserScan
+
+msg = """
+control your Turtlebot3!
+-----------------------
+this is follower_1
+-----------------------
+"""
+
+binge=1
+
+follower1_pos=Point()
+follower2_pos=Point()
+follower3_pos=Point()
+follower4_pos=Point()
+leader_pos=Point()
+attacker_pos=Point()
+leader_vel=Twist()
+follower1_vel=Twist()
+leader_rot=Point()
+K1=0.2
+K2=0.1
+K3=1
+alpha=0
+detect_R=0.8
+safe_r1=0.2
+safe_r2=0.5
+ID=0
+
+class GotoPoint():
+    def __init__(self):
+        rospy.init_node('follower1', anonymous=False)
+
+        rospy.on_shutdown(self.shutdown)
+        self.cmd_vel = rospy.Publisher('cmd_vel', Twist, queue_size=5)#5
+        self.follower1_positon=rospy.Publisher('/follower1_pos',Point,queue_size=5)#5
+        position = Point()
+        move_cmd = Twist()
+        r = rospy.Rate(10)
+        self.tf_listener = tf.TransformListener()
+        self.odom_frame = '/follower1/odom'
+        
+        try:
+            self.tf_listener.waitForTransform(self.odom_frame, '/follower1/base_footprint', rospy.Time(), rospy.Duration(1.0))
+            self.base_frame = '/follower1/base_footprint'
+        except (tf.Exception, tf.ConnectivityException, tf.LookupException):
+            try:
+                self.tf_listener.waitForTransform(self.odom_frame, '/follower1/base_link', rospy.Time(), rospy.Duration(1.0))
+                self.base_frame = '/follower1/base_link'
+            except (tf.Exception, tf.ConnectivityException, tf.LookupException):
+                rospy.loginfo("Cannot find transform between odom and base_link or base_footprint")
+                rospy.signal_shutdown("tf Exception")
+        global follower1_pos
+        global follower2_pos
+        global follower3_pos
+        global follower4_pos
+        global leader_pos
+        global attacker_pos
+        avo=1
+        (position, rotation) = self.get_odom()
+        rospy.Subscriber('/follower2_pos',Point,point_callback_2)
+        # rospy.Subscriber('/follower3_pos',Point,point_callback_3)
+        # rospy.Subscriber('/follower4_pos',Point,point_callback_4)
+        rospy.Subscriber('/leader_pos',Point,point_callback_5)
+        rospy.Subscriber('/attacker_pos',Point,point_callback_6)
+
+        rospy.Subscriber('/leader/cmd_rot',Point,ori_callback_5)
+        rospy.Subscriber('/leader/cmd_vel',Twist,vel_callback_5)
+        self.follower1_positon.publish(position)
+
+        if leader_pos.x==0:
+            print "wrong"
+            leader_pos.x=leader_pos.x+1
+            leader_pos.y=leader_pos.y
+        
+        #follower1_vel_delta_x=(leader_pos.x+follower2_pos.x+follower3_pos.x+follower4_pos.x-4*position.x+1)
+        #follower1_vel_delta_y=(leader_pos.y+follower2_pos.y+follower3_pos.y+follower4_pos.y-4*position.y+5)
+        follower1_vel_delta_x=leader_pos.x-position.x-0.5
+        follower1_vel_delta_y=leader_pos.y-position.y-0.5
+        #print follower1_vel_delta_x;print follower1_vel_delta_y
+
+        if abs(follower1_vel_delta_x)<0.05:
+            follower1_vel_delta_x=0
+        if abs(follower1_vel_delta_y)<0.05:
+            follower1_vel_delta_y=0
+        goal_x=follower1_vel_delta_x+position.x
+        goal_y=follower1_vel_delta_y+position.y
+        goal_z=atan2(follower1_vel_delta_y,follower1_vel_delta_x)
+       # print follower1_vel_delta_x;print follower1_vel_delta_y
+        if follower1_vel_delta_x==0 and follower1_vel_delta_y==0:
+            goal_z=0
+        print ('goal_x=%f'%(goal_x))
+        print ('goal_y=%f'%(goal_y))
+
+        print ('aim_ang1=%f'%(goal_z))
+        distance = sqrt(pow(follower1_vel_delta_x, 2) + pow(follower1_vel_delta_y, 2))
+        print ('follower1_vel_data_x=%f'%(follower1_vel_delta_x))   #No problem
+        print ('follower1_vel_data_y=%f'%(follower1_vel_delta_y)) #No problem
+
+        print ('dis1=%f'%(distance))
+        
+        global leader_vel
+        angular_now=rotation
+        phi=goal_z
+
+
+        follower1_pos.x=position.x-0.5
+        follower1_pos.y=position.y
+        attacker_pos.x=attacker_pos.x+1
+        attacker_pos.y=attacker_pos.y-1
+        
+        # pos_nodes=[follower1_pos,follower2_pos,leader_pos,attacker_pos]
+        pos_nodes=[follower1_pos,leader_pos]
+        
+        # pos_nodes=[follower2_pos,follower1_pos,follower3_pos,follower4_pos,leader_pos]
+        # lidar_nodes=self.lidar(position)
+        # if lidar_nodes.x!=10 and abs(lidar_nodes.x-position.x)>0.1:
+        #     #pos_nodes=[follower1_pos,follower2_pos,follower3_pos,follower4_pos,leader_pos,lidar_nodes]
+        #     pos_nodes=[follower1_pos,follower2_pos,follower3_pos,follower4_pos,leader_pos,attacker_pos]
+        # else:
+        # 	pos_nodes=[follower1_pos,follower2_pos,follower3_pos,follower4_pos,leader_pos,attacker_pos]
+        temp_x_sum=0
+        temp_x=0
+        temp_y_sum=0
+        temp_y=0
+        print pos_nodes
+        for i in range(len(pos_nodes)):
+            if i!=ID:
+                # print i
+                # print pos_nodes[i].x
+
+                r=sqrt(pow(pos_nodes[i].x-position.x,2)+pow(pos_nodes[i].y-position.y,2))
+                if r<detect_R:
+                    print ('distance between %d is %f'%(i,r))
+                    print (i)
+                    temp_x=(1/r-1/detect_R)*(pos_nodes[ID].x-pos_nodes[i].x)
+                    temp_y=(1/r-1/detect_R)*(pos_nodes[ID].y-pos_nodes[i].y)
+                    temp_fenmu=pow(r,3)
+                    temp_x=temp_x/temp_fenmu
+                    temp_y=temp_y/temp_fenmu
+                    temp_x_sum=temp_x_sum+temp_x
+                    temp_y_sum=temp_y_sum+temp_y
+                    if r>safe_r2:
+                        avo=2
+                    elif r<safe_r1:
+                        avo=5
+                    else:
+                        avo=3
+        avoid_delta=temp_x_sum*sin(angular_now)+temp_y_sum*cos(angular_now)                 
+        print ('the avoid_delta=%f'%(avoid_delta))
+        delta_theta=self.compute_theta(phi,angular_now)
+        print ('the delta_ang=%f'%(delta_theta))
+        print ('the ang_now=%f'%(angular_now))
+        print ('the goal_angular=%f'%(phi))
+        if abs(delta_theta)>1:
+            follower1_vel.linear.x=0+avo*avoid_delta
+            follower1_vel.angular.z=delta_theta*2
+        else:
+            follower1_vel.linear.x=K1*(follower1_vel_delta_x*cos(angular_now)+follower1_vel_delta_y*sin(angular_now))+leader_vel.linear.x+avo*avoid_delta
+            follower1_vel.angular.z=K2*delta_theta
+        # follower1_vel.linear.x=K1*(follower1_vel_delta_x*abs(cos(angular_now))+follower1_vel_delta_y*abs(sin(angular_now)))+leader_vel.linear.x+avo*avoid_delta
+        # follower1_vel.linear.x=0
+        # follower1_vel.angular.z=K2*delta_theta*2
+        print ('the vel=%f'%(follower1_vel.linear.x))
+        
+        self.cmd_vel.publish(follower1_vel) 
+        # (position, rotation) = self.get_odom()
+        msgs ="""this is follower1_theta"""
+        print msgs
+        
+    def lidar(self,tb_pos):
+        #print 12
+        msg = rospy.wait_for_message("/follower1/scan", LaserScan)
+        #print (msg)
+        LIDAR_ERR = 0.05
+        LIDAR_MAX = 2
+        obstacle=[]
+        min_dis=3
+        min_ang=0
+        min_point=Point()
+        for i in range(360):
+            if i <= 90 or i > 270 and i!=0:
+                obstacle_pos=Point()
+                if msg.ranges[i] >= LIDAR_ERR and msg.ranges[i]<=LIDAR_MAX and msg.ranges[i]>0.17:
+                    obstacle_pos.x=tb_pos.x+msg.ranges[i]*cos(i*2*pi/360)
+                    obstacle_pos.y=tb_pos.y+msg.ranges[i]*sin(i*2*pi/360)
+                    obstacle.append(obstacle_pos)
+                    if msg.ranges[i] < min_dis:
+                            min_dis = msg.ranges[i]
+                            min_ang = i
+        if min_dis<3:
+            min_point.x=tb_pos.x+min_dis*cos(i*2*pi/360)
+            min_point.y=tb_pos.y+min_dis*sin(i*2*pi/360)
+            min_point.z=min_ang
+        else:
+            min_point.x=-1000
+            min_point.y=-1000
+        return min_point
+
+
+        
+    def compute_theta(self,theta,rotation1):
+        if theta*rotation1<0:
+            if theta>0:
+                if abs(rotation1)+theta<=pi:
+                    w=abs(rotation1)+theta
+                else:
+                    w=-(2*pi+rotation1-theta)
+            else:
+                if rotation1+abs(theta)<=pi:
+                    w=-(abs(theta)+rotation1)
+                else:
+                    w=(2*pi-rotation1+theta)
+        else:
+            w=theta-rotation1
+        return w
+
+
+    def get_odom(self):
+        try:
+            (trans, rot) = self.tf_listener.lookupTransform(self.odom_frame, self.base_frame, rospy.Time(0))
+            rotation = euler_from_quaternion(rot)
+
+        except (tf.Exception, tf.ConnectivityException, tf.LookupException):
+            rospy.loginfo("TF Exception")
+            return
+
+        return (Point(*trans), rotation[2])
+    def shutdown(self):
+        self.cmd_vel.publish(Twist())
+        rospy.sleep(1)
+
+def ori_callback_5(data):
+    global leader_rot
+    leader_rot=data
+def vel_callback_5(data):
+    global leader_vel
+    leader_vel=data
+def point_callback_1(data):
+    global follower1_pos
+    follower1_pos.x=data.x
+    follower1_pos.y=data.y
+def point_callback_2(data):
+    global follower2_pos
+    follower2_pos.x=data.x
+    follower2_pos.y=data.y
+def point_callback_3(data):
+    global follower3_pos
+    follower3_pos.x=data.x
+    follower3_pos.y=data.y
+def point_callback_4(data):
+    global follower4_pos
+    follower4_pos.x=data.x
+    follower4_pos.y=data.y
+def point_callback_5(data):
+    global leader_pos
+    leader_pos.x=data.x
+    leader_pos.y=data.y
+def point_callback_6(data):
+    global attacker_pos
+    attacker_pos.x=data.x
+    attacker_pos.y=data.y
+
+
+if __name__ == '__main__':
+	try:
+		while not rospy.is_shutdown():
+			print(msg)
+			binge=binge+1
+			GotoPoint()
+	except:
+		rospy.loginfo("shutdown program.")
+        # print bingg
